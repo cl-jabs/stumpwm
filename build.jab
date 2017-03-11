@@ -1,0 +1,170 @@
+;;; -*- Mode: Lisp -*-
+
+(defpackage :stumpwm-system
+  (:use :cl :jabs :tools@jabs))
+(in-package :stumpwm-system)
+
+(defproject :stumpwm
+  :name "StumpWM"
+  :author "Shawn Betts <sabetts@vcn.bc.ca>"
+  :version "1.0.0"
+  :maintainer "David Bjergaard <dbjergaard@gmail.com>"
+  ;; :license "GNU General Public License"
+  :description "A tiling, keyboard driven window manager"
+  :serial t
+  ;; jabs part
+  :plugins (:quicklisp@repository :make-binary@generic)
+  :skeleton :flat
+  :bout :default
+  :make-binary (:name "stumpwm" :toplevel-function "stumpwm:stumpwm") ;; only if `make-binary@generic` plugin included
+  ;; /jabs part
+  :depends-on (:alexandria
+               :cl-ppcre #-cmu :clx #+sbcl :sb-posix)
+  :components ((:file "package")
+               (:file "primitives")
+               (:file "workarounds")
+               (:file "wrappers")
+               (:file "pathnames")
+               (:file "font-rendering")
+               (:file "keysyms")
+               (:file "keytrans")
+               (:file "kmap")
+               (:file "input")
+               (:file "core")
+               (:file "command")
+               (:file "menu")
+               (:file "screen")
+               (:file "head")
+               (:file "group")
+               (:file "bindings")
+               (:file "events")
+               (:file "window")
+               (:file "floating-group")
+               (:file "tile-window")
+               (:file "tile-group")
+               (:file "window-placement")
+               (:file "message-window")
+               (:file "selection")
+               (:file "module")
+               (:file "ioloop")
+               (:file "stumpwm")
+               (:file "user")
+               (:file "interactive-keymap")
+               (:file "iresize")
+               (:file "help")
+               (:file "fdump")
+               (:file "time")
+               (:file "mode-line")
+               (:file "mode-line-formatters")
+               (:file "color")
+               (:file "wse")
+               ;; keep this last so it always gets recompiled if
+               ;; anything changes
+               (:file "version")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; implement ``makeinfo'' presence validation
+(defhit stumpwm-validate-makeinfo-presence () ()
+  (when (not (eq (os-exec "which" '("makeinfo") :output nil) 0))
+    (jlog:crit "There is no ``makeinfo'' present in your system. Please, install it firstly")))
+
+;; implement ``xdpyinfo'' presence validation
+(defhit stumpwm-validate-xdpyinfo-presence () ()
+  (when (not (eq (os-exec "which" '("xdpyinfo") :output nil) 0))
+    (jlog:err "There is no ``xdpyinfo'' present in your system. Please, install it for xinerama support")))
+
+;; append ``stumpwm-validate-makeinfo-presence'' and ``stumpwm-validate-xdpyinfo-presence'' hits to ``validate'' round
+(append-hit :stumpwm-validate-makeinfo-presence :validate)
+(append-hit :stumpwm-validate-xdpyinfo-presence :validate)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; implement target stumpwm.info from Makefile
+(defhit stumpwm-info () ()
+  (os-exec "makeinfo" '("stumpwm.texi")))
+
+;; implement stumpwm.texi from Makefile
+(defhit stumpwm-texi () ()
+  (load "manual.lisp")
+  ;; there is no package, named ``stumpwm''
+  ;; at hit defining time. So, we just
+  ;; make function symbol and call it
+  ;; at hit call, but not definition time
+  (funcall                              ; call function symbol
+   (eval `(function ,(tools@jabs:tosymbol :generate-manual :stumpwm))) ; create function symbol
+   )
+  )
+            
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defvar *prefix* (make-pathname :directory '(:absolute "usr" "local")))
+(bind-jabs-cli-parameter
+ "prefix"
+ #'(lambda (x) ;; x is always list of arguments, given to parameter. Ex.: ``-Dparam=arg1,arg2,...''
+     (setf *prefix* (pathname-as-directory (parse-namestring (car x))))))
+;; redefine it immediately
+(process-jabs-cli-parameter "prefix")
+
+(defvar *bindir* (merge-pathnames (make-pathname :directory '(:relative "bin")) *prefix*))
+(bind-jabs-cli-parameter
+ "bindir"
+ #'(lambda (x)
+     (setf *bindir* (pathname-as-directory (parse-namestring (car x))))))
+
+(defvar *datarootdir* (merge-pathnames (make-pathname :directory '(:relative "share")) *prefix*))
+(bind-jabs-cli-parameter
+ "datarootdir"
+ #'(lambda (x)
+     (setf *datarootdir* (pathname-as-directory (parse-namestring (car x))))))
+
+(defvar *infodir* (merge-pathnames (make-pathname :directory '(:relative "info")) *datarootdir*))
+(bind-jabs-cli-parameter
+ "infodir"
+ #'(lambda (x)
+     (setf *infodir* (pathname-as-directory (parse-namestring (car x))))))
+
+(defvar *stumpwm-module-dir* (merge-pathnames
+                              (make-pathname :directory '(:relative ".stumpwm.d" "modules"))
+                              (user-homedir-pathname)))
+(bind-jabs-cli-parameter
+ "stumpwm-modules-dir"
+ #'(lambda (x)
+     (setf *stumpwm-module-dir* (pathname-as-directory (parse-namestring (car x))))))
+
+(defvar *strumpwm-asdf-dir* +jabs-run-directory+)
+(defvar *strumpwm-data-dir* (merge-pathnames (make-pathname :directory '(:relative "stumpwm")) *datarootdir*))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defhit stumpwm-install-binary () ()
+  (if (file-exists-p "stumpwm") ; check, if binary file already exists
+      (progn
+        (os-cp "stumpwm" *bindir* :force t)
+        (os-exec "chmod" (list "+x" (tostr (make-pathname :directory (pathname-directory (pathname-as-directory *bindir*)) :name "stumpwm")))))
+    (jlog:crit "Can not find ``stumpwm'' binary. Please, make binary first"))
+  )
+
+(defhit stumpwm-install-info () ()
+  (os-mkdir *infodir*)
+  (os-cp "stumpwm.info" *infodir* :force t)
+  (os-exec "install-info" (list (format nil "--info-dir=~a" *infodir*) (format nil "~a/stumpwm.info" *infodir*))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defround :stumpwm-build-info
+  :stumpwm-texi
+  :stumpwm-info)
+;; add :stumpwm-build-info as part of compile round
+;; append it to end of round
+(append-hit :stumpwm-build-info :compile)
+
+(defround :stumpwm-install
+  :stumpwm-install-binary
+  :stumpwm-install-info)
+
+(defbout :install-stumpwm
+  :validate
+  :initialize
+  :compile
+  :stumpwm-install)
