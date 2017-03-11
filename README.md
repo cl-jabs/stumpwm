@@ -1,4 +1,8 @@
 ![](https://stumpwm.github.io/images/stumpwm-logo-stripe.png)
+# WARNING!
+This is JUST! an example, where autotools/make/asdf replaced
+with [JABS](https://github.com/cl-jabs/cl-jabs) build system
+
 # The Stump Window Manager
 ![](https://travis-ci.org/stumpwm/stumpwm.svg)
 Stumpwm is a window manager written entirely in Common Lisp. It

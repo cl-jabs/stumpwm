@@ -74,7 +74,9 @@
   (when (not (eq (os-exec "which" '("xdpyinfo") :output nil) 0))
     (jlog:err "There is no ``xdpyinfo'' present in your system. Please, install it for xinerama support")))
 
-;; append ``stumpwm-validate-makeinfo-presence'' and ``stumpwm-validate-xdpyinfo-presence'' hits to ``validate'' round
+;; append ``stumpwm-validate-makeinfo-presence''
+;; and ``stumpwm-validate-xdpyinfo-presence''
+;; hits to ``validate'' round
 (append-hit :stumpwm-validate-makeinfo-presence :validate)
 (append-hit :stumpwm-validate-xdpyinfo-presence :validate)
 
@@ -95,7 +97,7 @@
    (eval `(function ,(tools@jabs:tosymbol :generate-manual :stumpwm))) ; create function symbol
    )
   )
-            
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defvar *prefix* (make-pathname :directory '(:absolute "usr" "local")))
@@ -168,3 +170,11 @@
   :initialize
   :compile
   :stumpwm-install)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defhit stumpwm-clean () ()
+  (os-rm "stumpwm")
+  (os-rm "stumpwm.info")
+  (os-rm "stumpwm.texi"))
+(append-hit :stumpwm-clean :clean)
